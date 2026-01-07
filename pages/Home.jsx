@@ -1,14 +1,14 @@
-import React, { useContext, useRef, useEffect, useState } from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import { userDataContext } from "../src/context/UserContext";
 import { useNavigate } from "react-router-dom";
 import aiImg from "../src/assets/ai.gif";
 import userImg from "../src/assets/voice.gif";
 import { TbMenuDeep } from "react-icons/tb";
 import { RxCross1 } from "react-icons/rx";
+import { FaMicrophone } from "react-icons/fa";
 
 function Home() {
-  const { userData, serverUrl, setUserData, getGeminiResponse } =
-    useContext(userDataContext);
+  const { userData, setUserData, getGeminiResponse } = useContext(userDataContext);
   const navigate = useNavigate();
 
   const [listening, setListening] = useState(false);
@@ -16,186 +16,147 @@ function Home() {
   const [aiText, setAiText] = useState("");
   const [ham, setHam] = useState(false);
 
-  const isSpeakingRef = useRef(false);
   const recognitionRef = useRef(null);
-  const isRecognizingRef = useRef(false);
+  const isSpeakingRef = useRef(false);
+  const shouldListenRef = useRef(true);
 
   const synth = window.speechSynthesis;
 
-  // 🚪 Logout
-  const handleLogOut = async () => {
+  //  Logout
+  const handleLogOut = () => {
     setUserData(null);
     navigate("/signin");
   };
 
-  // 🗣️ Speak
+  //  Add to history
+  const addToHistory = (text) => {
+    setUserData((prev) => ({
+      ...prev,
+      history: [...(prev.history || []), text],
+    }));
+  };
+
+  //  Speak Hindi/English properly
   const speak = (text) => {
     if (!text) return;
-    const utterance = new SpeechSynthesisUtterance(text);// browser ka builtin object hai batata hai ki kya bolna hai aur kaise bolna hai usko 
+    synth.cancel();
 
+    const utter = new SpeechSynthesisUtterance(text);
     const voices = synth.getVoices();
-    const voice =
-      voices.find((v) => v.lang === "hi-IN") ||
-      voices.find((v) => v.lang.startsWith("en")) ||
-      voices[0];
-    if (voice) utterance.voice = voice;
-    utterance.lang = voice?.lang || "en-IN";
+    const isHindi = /^[\u0900-\u097F\s.,!?]+$/.test(text);
 
+    if (isHindi) {
+      utter.voice = voices.find((v) => v.lang === "hi-IN") || voices[0];
+      utter.lang = "hi-IN";
+    } else {
+      utter.voice = voices.find((v) => v.lang.startsWith("en")) || voices[0];
+      utter.lang = "en-IN";
+    }
+
+    utter.rate = 0.95;
+    utter.pitch = 1;
     isSpeakingRef.current = true;
-    utterance.onend = () => {
+
+    utter.onend = () => {
       isSpeakingRef.current = false;
-      setAiText(""); // clear after speaking
-      setTimeout(() => startRecognition(), 800);
+      setAiText("");
+      if (shouldListenRef.current) setTimeout(startRecognition, 700);
     };
 
-    synth.cancel();
-    synth.speak(utterance);
+    synth.speak(utter);
   };
 
-  // 🎤 Start Recognition
+  // 🔹 Start recognition
   const startRecognition = () => {
     const rec = recognitionRef.current;
-    if (!rec || isRecognizingRef.current || isSpeakingRef.current) return;
+    if (!rec || isSpeakingRef.current || listening) return;
     try {
       rec.start();
-      console.log("🎙️ Recognition started");
-    } catch (err) {
-      if (err.name !== "InvalidStateError") console.error(err);
-    }
+    } catch {}
   };
 
-  // ⚡ Handle Commands
+  // 🔹 Manual mic start
+  const handleStartMic = () => {
+    shouldListenRef.current = true;
+    startRecognition();
+  };
+
+  // 🔹 Handle AI command & open URL
   const handleCommand = (parsed) => {
     if (!parsed) return;
     const { type, userInput, response } = parsed;
 
-    speak(response);
+    addToHistory("🧑 " + userInput);
+    addToHistory("🤖 " + response);
+
     setAiText(response);
+    speak(response);
 
     let url = "";
     switch (type) {
+      case "youtube-search":
+      case "youtube-play":
+        url = `https://www.youtube.com/results?search_query=${encodeURIComponent(userInput)}`;
+        break;
       case "google-search":
         url = `https://www.google.com/search?q=${encodeURIComponent(userInput)}`;
         break;
-      case "youtube-search":
-      case "youtube-play":
-        url = `https://www.youtube.com/results?search_query=${encodeURIComponent(
-          userInput
-        )}`;
-        break;
-      case "calculator-open":
-        url = `https://www.google.com/search?q=calculator`;
-        break;
-      case "instagram-open":
-        url = `https://www.instagram.com/`;
-        break;
-      case "facebook-open":
-        url = `https://www.facebook.com/`;
-        break;
-      case "weather-show":
-        url = `https://www.google.com/search?q=weather`;
-        break;
-      case "get-time":
-        speak(`Abhi ${new Date().toLocaleTimeString()} ho raha hai.`);
-        break;
-      case "get-date":
-        speak(`Aaj ${new Date().toLocaleDateString()} hai.`);
-        break;
-      case "get-day":
-        speak(
-          `Aaj ${new Date().toLocaleDateString("en-IN", {
-            weekday: "long",
-          })} hai.`
-        );
-        break;
+      case "stop":
+        shouldListenRef.current = false;
+        speak("ठीक है, मैं रुक रहा हूँ।");
+        return;
       default:
         break;
     }
-    if (url) {
-      console.log("Opening URL:", url);
-      window.open(url, "_blank");
-    }
+    if (url) window.open(url, "_blank");
   };
 
-  // 🎤 Setup Speech Recognition
+  // 🔹 Setup recognition
   useEffect(() => {
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert("Speech Recognition not supported in this browser!");
+      alert("Speech recognition not supported!");
       return;
     }
 
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
-    recognition.lang = "en-IN";
     recognition.interimResults = false;
-    recognitionRef.current = recognition;
+    recognition.lang = "en-IN";
 
-    recognition.onstart = () => {
-      isRecognizingRef.current = true;
-      setListening(true);
-      console.log("🎧 Listening...");
-    };
-
+    recognition.onstart = () => setListening(true);
     recognition.onend = () => {
-      isRecognizingRef.current = false;
       setListening(false);
-      if (!isSpeakingRef.current) setTimeout(startRecognition, 1000);
+      if (shouldListenRef.current && !isSpeakingRef.current) setTimeout(startRecognition, 700);
     };
-
-    recognition.onerror = (e) => {
-      console.warn("Recognition error:", e.error);
-      isRecognizingRef.current = false;
-      setListening(false);
-      if (e.error !== "aborted") setTimeout(startRecognition, 1500);
-    };
+    recognition.onerror = () => setListening(false);
 
     recognition.onresult = async (event) => {
-      const transcript =
-        event.results[event.results.length - 1][0].transcript.trim();
-      console.log("Heard:", transcript);
+      const transcript = event.results[event.results.length - 1][0].transcript.trim();
+      if (!transcript) return;
 
-      if (transcript) {
-        recognition.stop();
-        isRecognizingRef.current = false;
-        setListening(false);
-        setUserText(transcript);
+      recognition.stop();
+      setUserText(transcript);
 
-        try {
-          const data = await getGeminiResponse(
-            transcript,
-            userData.assistantName || "Jarvis",
-            userData.name || "User"
-          );
+      try {
+        const data = await getGeminiResponse(
+          transcript,
+          userData.assistantName || "Jarvis",
+          userData.name || "User"
+        );
 
-          let parsed;
-          try {
-            parsed =
-              typeof data === "string" ? JSON.parse(data.trim()) : data;
-          } catch {
-            speak("Sorry, mujhe samajh nahi aaya.");
-            return;
-          }
-
-          setAiText(parsed.response);
-          handleCommand(parsed);
-          setUserText("");
-        } catch (err) {
-          console.error("Gemini error:", err);
-          speak("Sorry, kuchh galat ho gaya.");
-        }
+        const parsed = typeof data === "string" ? JSON.parse(data) : data;
+        handleCommand(parsed);
+        setUserText("");
+      } catch {
+        speak("माफ़ करना, कुछ गड़बड़ हो गई।");
       }
     };
 
+    recognitionRef.current = recognition;
+
     // Greeting
-    const greet = new SpeechSynthesisUtterance(
-      `Hello ${userData?.name || "User"}, main ${
-        userData?.assistantName || "Jarvis"
-      } hoon. How can I help you?`
-    );
-    greet.lang = "en-IN";
-    synth.speak(greet);
+    setTimeout(() => speak(`Hello ${userData?.name || "User"}, main ${userData?.assistantName || "Jarvis"} hoon.`), 500);
 
     setTimeout(startRecognition, 1200);
 
@@ -206,80 +167,55 @@ function Home() {
   }, []);
 
   return (
-    <div className="w-full h-[100vh] bg-gradient-to-t from-black to-[#02023d] flex justify-center items-center flex-col gap-[15px] overflow-hidden">
-      {/* Mobile Menu */}
-      <TbMenuDeep
-        className="lg:hidden text-white absolute top-[20px] right-[20px] w-[25px] h-[25px]"
-        onClick={() => setHam(true)}
-      />
-      <div
-        className={`absolute lg:hidden top-0 w-full h-full bg-[#00000053] backdrop-blur-lg p-[20px] flex flex-col gap-[20px] items-start ${
-          ham ? "translate-x-0" : "translate-x-full"
-        } transition-transform`}
-      >
-        <RxCross1
-          className=" text-white absolute top-[20px] right-[20px] w-[25px] h-[25px]"
-          onClick={() => setHam(false)}
-        />
+    <div
+      className="w-full h-[100vh] flex flex-col items-center justify-center gap-4 relative"
+      style={{
+        backgroundImage: `url(${userData?.assistantImage})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
+    >
+      {/* Top Buttons */}
+      <div className="absolute top-5 right-5 flex gap-3">
         <button
-          className="min-w-[150px] h-[60px] text-black font-semibold bg-white rounded-full cursor-pointer text-[19px]"
-          onClick={handleLogOut}
+          onClick={handleStartMic}
+          className="bg-green-500 text-white px-4 py-2 rounded-full flex items-center gap-2 hover:bg-green-600"
         >
-          Log Out
+          <FaMicrophone /> Start Mic
         </button>
+
         <button
-          className="min-w-[150px] h-[60px] text-black font-semibold bg-white rounded-full cursor-pointer text-[19px] px-[20px] py-[10px]"
           onClick={() => navigate("/customize")}
+          className="bg-white px-4 py-2 rounded-full hover:bg-gray-200"
         >
-          Customize your Assistant
+          Customize
         </button>
-        <div className="w-full h-[2px] bg-gray-400"></div>
-        <h1 className="text-white font-semibold text-[19px]">History</h1>
-        <div className="w-full h-[400px] gap-[20px] overflow-y-auto flex flex-col truncate">
-          {userData.history?.map((his, idx) => (
-            <div
-              key={idx}
-              className="text-gray-200 text-[18px] w-full h-[30px]"
-            >
-              {his}
-            </div>
-          ))}
-        </div>
-      </div>
 
-      {/* Desktop Buttons */}
-      <button
-        className="min-w-[150px] h-[60px] mt-[30px] text-black font-semibold absolute hidden lg:block top-[20px] right-[20px] bg-white rounded-full cursor-pointer text-[19px]"
-        onClick={handleLogOut}
-      >
-        Log Out
-      </button>
-      <button
-        className="min-w-[150px] h-[60px] mt-[30px] text-black font-semibold bg-white absolute top-[100px] right-[20px] rounded-full cursor-pointer text-[19px] px-[20px] py-[10px] hidden lg:block"
-        onClick={() => navigate("/customize")}
-      >
-        Customize your Assistant
-      </button>
-
-      {/* Assistant Image */}
-      <div className="w-[300px] h-[400px] flex justify-center items-center overflow-hidden rounded-4xl shadow-lg">
-        <img
-          src={userData?.assistantImage}
-          alt=""
-          className="h-full object-cover"
+        <TbMenuDeep
+          className="text-white w-7 h-7 cursor-pointer"
+          onClick={() => setHam(true)}
         />
       </div>
 
-      <h1 className="text-white text-[18px] font-semibold">
-        I'm {userData?.assistantName || "Jarvis"}
-      </h1>
+      {/* Side Menu */}
+      {ham && (
+        <div className="absolute inset-0 bg-black/70 p-5">
+          <RxCross1
+            className="text-white absolute top-5 right-5 cursor-pointer"
+            onClick={() => setHam(false)}
+          />
+          <button onClick={handleLogOut} className="bg-white px-5 py-2 rounded-full">Logout</button>
+          <h2 className="text-white mt-5 mb-2">History</h2>
+          <div className="text-white h-[70vh] overflow-y-auto">
+            {userData.history?.map((h, i) => <div key={i}>{h}</div>)}
+          </div>
+        </div>
+      )}
 
-      {!aiText && <img src={userImg} alt="" className="w-[200px]" />}
-      {aiText && <img src={aiImg} alt="" className="w-[200px]" />}
-
-      <h1 className="text-white text-[18px] font-semibold text-wrap">
-        {userText || aiText || null}
-      </h1>
+      {!aiText && <img src={userImg} className="w-48" />}
+      {aiText && <img src={aiImg} className="w-48" />}
+      <h1 className="text-white text-lg text-center px-4">{userText || aiText}</h1>
+      {listening && <p className="text-green-400 font-semibold">🎧 Listening...</p>}
     </div>
   );
 }
