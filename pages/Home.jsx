@@ -1,7 +1,7 @@
 import React, { useContext, useEffect, useRef, useState } from "react";
 import { userDataContext } from "../src/context/UserContext";
 import { useNavigate } from "react-router-dom";
-import aiImg from "../src/assets/ai.gif";
+import aiImg from "../src/assets/AI.gif";
 import userImg from "../src/assets/voice.gif";
 import { TbMenuDeep } from "react-icons/tb";
 import { RxCross1 } from "react-icons/rx";
