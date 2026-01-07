@@ -12,7 +12,7 @@ import bg4 from "../src/assets/AI4.png"
 import { IoEye } from "react-icons/io5";
 import { IoEyeOff } from "react-icons/io5";
 import "react-responsive-carousel/lib/styles/carousel.min.css"; // requires a loader
-import { userDataContext } from "../context/UserContext";
+import { userDataContext } from "../src/context/UserContext";
 
 
 
