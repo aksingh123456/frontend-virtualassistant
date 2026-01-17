@@ -10,16 +10,15 @@ function UserContext({children}) {
     const [selectedImage,setSelectedImage]= useState(null)
 
     const handleCurrentUser = async ()=>{
-      try{
-         const result = await axios.get(`${serverUrl}/api/user/current`,{withCredentials:true});
-         setUserData(result.data);
-         console.log(result.data);
-         
-      }catch(error){
-         console.log(error);
-         
-      }
-    }
+  try{
+     const result = await axios.get(`${serverUrl}/api/user/current`,{withCredentials:true});
+     setUserData(result.data);
+  }catch(error){
+     console.log("No user logged in yet");
+     setUserData(null);
+  }
+}
+
 // fetching gemini response from the backend
 
     const getGeminiResponse= async (command)=>{
