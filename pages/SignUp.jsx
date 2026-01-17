@@ -39,12 +39,17 @@ const SignUp = () => {
       navigate("/customize")
       
     }catch(err){
-     console.log(err);
-     setUserData(null)
-     setLoading(false)
-     setError(err.response.data.msg)
-     
+    console.log(err);
+    setUserData(null)
+    setLoading(false)
+
+    if(err.response && err.response.data && err.response.data.msg){
+        setError(err.response.data.msg)
+    } else {
+        setError("Server not reachable or network error")
     }
+}
+
   }
 
   return (
