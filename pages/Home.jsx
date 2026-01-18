@@ -8,7 +8,8 @@ import { RxCross1 } from "react-icons/rx";
 import { FaMicrophone } from "react-icons/fa";
 
 function Home() {
-  const { userData, setUserData, getGeminiResponse } = useContext(userDataContext);
+  const { userData, setUserData, getGeminiResponse } =
+    useContext(userDataContext);
   const navigate = useNavigate();
 
   const [listening, setListening] = useState(false);
@@ -22,13 +23,13 @@ function Home() {
 
   const synth = window.speechSynthesis;
 
-  //  Logout
+  // Logout
   const handleLogOut = () => {
     setUserData(null);
     navigate("/signin");
   };
 
-  //  Add to history
+  // History
   const addToHistory = (text) => {
     setUserData((prev) => ({
       ...prev,
@@ -36,54 +37,56 @@ function Home() {
     }));
   };
 
-  //  Speak Hindi/English properly
+  // Speak function
   const speak = (text) => {
     if (!text) return;
-    synth.cancel();
 
+    synth.cancel();
     const utter = new SpeechSynthesisUtterance(text);
     const voices = synth.getVoices();
-    const isHindi = /^[\u0900-\u097F\s.,!?]+$/.test(text);
 
-    if (isHindi) {
-      utter.voice = voices.find((v) => v.lang === "hi-IN") || voices[0];
-      utter.lang = "hi-IN";
-    } else {
-      utter.voice = voices.find((v) => v.lang.startsWith("en")) || voices[0];
-      utter.lang = "en-IN";
-    }
+    const isHindi = /[\u0900-\u097F]/.test(text);
 
+    utter.voice =
+      voices.find((v) => (isHindi ? v.lang === "hi-IN" : v.lang.startsWith("en"))) ||
+      voices[0];
+
+    utter.lang = isHindi ? "hi-IN" : "en-IN";
     utter.rate = 0.95;
     utter.pitch = 1;
+
     isSpeakingRef.current = true;
 
     utter.onend = () => {
       isSpeakingRef.current = false;
       setAiText("");
-      if (shouldListenRef.current) setTimeout(startRecognition, 700);
+      if (shouldListenRef.current) {
+        setTimeout(startRecognition, 600);
+      }
     };
 
     synth.speak(utter);
   };
 
-  // 🔹 Start recognition
+  // Start mic
   const startRecognition = () => {
     const rec = recognitionRef.current;
     if (!rec || isSpeakingRef.current || listening) return;
+
     try {
       rec.start();
     } catch {}
   };
 
-  // 🔹 Manual mic start
   const handleStartMic = () => {
     shouldListenRef.current = true;
     startRecognition();
   };
 
-  // 🔹 Handle AI command & open URL
+  // Handle AI command
   const handleCommand = (parsed) => {
     if (!parsed) return;
+
     const { type, userInput, response } = parsed;
 
     addToHistory("🧑 " + userInput);
@@ -93,47 +96,55 @@ function Home() {
     speak(response);
 
     let url = "";
-    switch (type) {
-      case "youtube-search":
-      case "youtube-play":
-        url = `https://www.youtube.com/results?search_query=${encodeURIComponent(userInput)}`;
-        break;
-      case "google-search":
-        url = `https://www.google.com/search?q=${encodeURIComponent(userInput)}`;
-        break;
-      case "stop":
-        shouldListenRef.current = false;
-        speak("ठीक है, मैं रुक रहा हूँ।");
-        return;
-      default:
-        break;
+    if (type === "youtube-search" || type === "youtube-play") {
+      url = `https://www.youtube.com/results?search_query=${encodeURIComponent(
+        userInput
+      )}`;
     }
+    if (type === "google-search") {
+      url = `https://www.google.com/search?q=${encodeURIComponent(userInput)}`;
+    }
+    if (type === "stop") {
+      shouldListenRef.current = false;
+      speak("ठीक है, मैं रुक रहा हूँ।");
+      return;
+    }
+
     if (url) window.open(url, "_blank");
   };
 
-  // 🔹 Setup recognition
+  // Speech Recognition setup
   useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
     if (!SpeechRecognition) {
-      alert("Speech recognition not supported!");
+      alert("Speech recognition not supported");
       return;
     }
 
     const recognition = new SpeechRecognition();
-    recognition.continuous = true;
+    recognition.continuous = false; // 🔥 FIX
     recognition.interimResults = false;
-    recognition.lang = "en-IN";
+    recognition.lang = "hi-IN"; // 🔥 Hindi + English mix
 
     recognition.onstart = () => setListening(true);
+
     recognition.onend = () => {
       setListening(false);
-      if (shouldListenRef.current && !isSpeakingRef.current) setTimeout(startRecognition, 700);
     };
-    recognition.onerror = () => setListening(false);
+
+    recognition.onerror = () => {
+      setListening(false);
+    };
 
     recognition.onresult = async (event) => {
-      const transcript = event.results[event.results.length - 1][0].transcript.trim();
+      const transcript =
+        event.results[event.results.length - 1][0].transcript.trim();
+
       if (!transcript) return;
+
+      console.log("User said:", transcript);
 
       recognition.stop();
       setUserText(transcript);
@@ -141,14 +152,14 @@ function Home() {
       try {
         const data = await getGeminiResponse(
           transcript,
-          userData.assistantName || "Jarvis",
-          userData.name || "User"
+          userData?.assistantName || "Jarvis",
+          userData?.name || "User"
         );
 
         const parsed = typeof data === "string" ? JSON.parse(data) : data;
         handleCommand(parsed);
         setUserText("");
-      } catch {
+      } catch (err) {
         speak("माफ़ करना, कुछ गड़बड़ हो गई।");
       }
     };
@@ -156,7 +167,13 @@ function Home() {
     recognitionRef.current = recognition;
 
     // Greeting
-    setTimeout(() => speak(`Hello ${userData?.name || "User"}, main ${userData?.assistantName || "Jarvis"} hoon.`), 500);
+    setTimeout(() => {
+      speak(
+        `Hello ${userData?.name || "User"}, main ${
+          userData?.assistantName || "Jarvis"
+        } hoon.`
+      );
+    }, 500);
 
     setTimeout(startRecognition, 1200);
 
@@ -175,18 +192,17 @@ function Home() {
         backgroundPosition: "center",
       }}
     >
-      {/* Top Buttons */}
       <div className="absolute top-5 right-5 flex gap-3">
         <button
           onClick={handleStartMic}
-          className="bg-green-500 text-white px-4 py-2 rounded-full flex items-center gap-2 hover:bg-green-600"
+          className="bg-green-500 text-white px-4 py-2 rounded-full flex items-center gap-2"
         >
           <FaMicrophone /> Start Mic
         </button>
 
         <button
           onClick={() => navigate("/customize")}
-          className="bg-white px-4 py-2 rounded-full hover:bg-gray-200"
+          className="bg-white px-4 py-2 rounded-full"
         >
           Customize
         </button>
@@ -197,25 +213,38 @@ function Home() {
         />
       </div>
 
-      {/* Side Menu */}
       {ham && (
         <div className="absolute inset-0 bg-black/70 p-5">
           <RxCross1
             className="text-white absolute top-5 right-5 cursor-pointer"
             onClick={() => setHam(false)}
           />
-          <button onClick={handleLogOut} className="bg-white px-5 py-2 rounded-full">Logout</button>
+          <button
+            onClick={handleLogOut}
+            className="bg-white px-5 py-2 rounded-full"
+          >
+            Logout
+          </button>
+
           <h2 className="text-white mt-5 mb-2">History</h2>
           <div className="text-white h-[70vh] overflow-y-auto">
-            {userData.history?.map((h, i) => <div key={i}>{h}</div>)}
+            {userData?.history?.map((h, i) => (
+              <div key={i}>{h}</div>
+            ))}
           </div>
         </div>
       )}
 
       {!aiText && <img src={userImg} className="w-48" />}
       {aiText && <img src={aiImg} className="w-48" />}
-      <h1 className="text-white text-lg text-center px-4">{userText || aiText}</h1>
-      {listening && <p className="text-green-400 font-semibold">🎧 Listening...</p>}
+
+      <h1 className="text-white text-lg text-center px-4">
+        {userText || aiText}
+      </h1>
+
+      {listening && (
+        <p className="text-green-400 font-semibold">🎧 Listening...</p>
+      )}
     </div>
   );
 }
