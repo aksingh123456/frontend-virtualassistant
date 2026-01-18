@@ -3,7 +3,7 @@ import axios from "axios"
 export const userDataContext = createContext();
 
 function UserContext({children}) {
-    const serverUrl = "https://backend-virtualassistant.vercel.app";
+    const serverUrl = "https://backend-virtualassistant.vercel.app/";
     const [userData,setUserData] = useState(null);
     const [frontendImage,SetFrontendImage]= useState(null);
     const [backendImage,setBackendImage]= useState(null);
@@ -11,7 +11,7 @@ function UserContext({children}) {
 
     const handleCurrentUser = async ()=>{
   try{
-     const result = await axios.get(`${serverUrl}/api/user/current`,{withCredentials:true});
+     const result = await axios.get(`${serverUrl}api/user/current`,{withCredentials:true});
      setUserData(result.data);
   }catch(error){
      console.log("No user logged in yet");
