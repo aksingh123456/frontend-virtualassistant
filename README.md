@@ -32,5 +32,9 @@ cd frontend-virtualassistant
 npm install
 3️⃣ Start the Development Server
 npm start
-<img width="1301" height="585" alt="image" src="https://github.com/user-attachments/assets/d180a3f5-fc92-4615-ab08-1c4014cca26f" />
+📸 Screenshots
+
+![Home Screen](screenshots/home.png)
+![Chat Screen](screenshots/chat.png)
+
 
